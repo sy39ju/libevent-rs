@@ -33,11 +33,12 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
 
       - name: Run cargo test
         run: |
           # Try bundled build first
-          cargo build --features "bundled,openssl_bundled"
+          cargo +nightly build --features "bundled,openssl_bundled"
           cargo run --manifest-path examples/hello/Cargo.toml --features "bundled,openssl_bundled" -- 5
           # Now pkg-config build
           sudo apt-get install -y libssl-dev libevent-dev
