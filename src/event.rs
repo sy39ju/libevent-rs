@@ -2,7 +2,7 @@ use crate::EventFlags;
 use std::cell::RefCell;
 use std::io;
 use std::marker::PhantomData;
-use std::os::unix::io::RawFd;
+use std::os::windows::io::RawHandle;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// The primitive event-type which is created with [Event::new] using a
-/// a non-negative `RawFd`.
+/// a non-negative `RawHandle`.
 ///
 /// [Event::new]: struct.Event.html#method.new
 #[derive(Debug)]
@@ -104,7 +104,7 @@ impl<T> EventInner<T> {
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct Inactive<T> {
-    fd: Option<RawFd>,
+    fd: Option<RawHandle>,
     flags: EventFlags,
     timeout: Option<Duration>,
     _phantom: PhantomData<T>,
@@ -159,7 +159,7 @@ impl<S> Event<S> {
 }
 
 impl Event<Inactive<Fd>> {
-    pub fn new(fd: RawFd, flags: EventFlags, timeout: Option<Duration>) -> Self {
+    pub fn new(fd: RawHandle, flags: EventFlags, timeout: Option<Duration>) -> Self {
         Inactive::new(Some(fd), flags, timeout)
     }
 
@@ -177,7 +177,7 @@ impl Event<Inactive<Fd>> {
 /// can develop a more ergonomic API around event types. (i.e., Event<Fd> would
 /// expose `pub fn fd()`, but not the timer types.
 impl<T> Event<Inactive<T>> {
-    pub(crate) fn inactive_fd(&self) -> Option<RawFd> {
+    pub(crate) fn inactive_fd(&self) -> Option<RawHandle> {
         self.inner.fd.as_ref().copied()
     }
     pub(crate) fn inactive_flags(&self) -> EventFlags {
@@ -189,7 +189,7 @@ impl<T> Event<Inactive<T>> {
 }
 
 impl<T> Inactive<T> {
-    fn new(fd: Option<RawFd>, flags: EventFlags, timeout: Option<Duration>) -> Event<Self> {
+    fn new(fd: Option<RawHandle>, flags: EventFlags, timeout: Option<Duration>) -> Event<Self> {
         Event {
             inner: Inactive {
                 fd,
@@ -323,23 +323,23 @@ impl<T> Drop for EventInner<T> {
 /// descriptor, so it is better just to mask the implicitly-invalid fd value
 /// libevent passes into the callback.
 pub trait Exec<S, F> {
-    fn exec(ev: &mut Event<S>, fd: RawFd, flags: EventFlags, cb: &mut F);
+    fn exec(ev: &mut Event<S>, fd: RawHandle, flags: EventFlags, cb: &mut F);
 }
 
-impl<S, F: FnMut(&mut Event<S>, RawFd, EventFlags)> Exec<S, F> for Fd {
-    fn exec(ev: &mut Event<S>, fd: RawFd, flags: EventFlags, cb: &mut F) {
+impl<S, F: FnMut(&mut Event<S>, RawHandle, EventFlags)> Exec<S, F> for Fd {
+    fn exec(ev: &mut Event<S>, fd: RawHandle, flags: EventFlags, cb: &mut F) {
         cb(ev, fd, flags)
     }
 }
 
 impl<S, F: FnMut(&mut Event<S>)> Exec<S, F> for Interval {
-    fn exec(ev: &mut Event<S>, _fd: RawFd, _flags: EventFlags, cb: &mut F) {
+    fn exec(ev: &mut Event<S>, _fd: RawHandle, _flags: EventFlags, cb: &mut F) {
         cb(ev)
     }
 }
 
 impl<S, F: FnMut(&mut Event<S>)> Exec<S, F> for Oneshot {
-    fn exec(ev: &mut Event<S>, _fd: RawFd, _flags: EventFlags, cb: &mut F) {
+    fn exec(ev: &mut Event<S>, _fd: RawHandle, _flags: EventFlags, cb: &mut F) {
         cb(ev)
     }
 }

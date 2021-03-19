@@ -10,7 +10,7 @@ use super::event::*;
 use crate::EventCallbackWrapper;
 
 /// A file descriptor in libevent.
-pub type EvutilSocket = c_int;
+pub type EvutilSocket = isize;
 
 /// The event callback function in libevent.
 pub type EventCallbackFn = extern "C" fn(EvutilSocket, EventCallbackFlags, EventCallbackCtx);
@@ -151,7 +151,7 @@ impl Base {
         let inner = unsafe {
             libevent_sys::event_new(
                 self.as_raw().as_ptr(),
-                fd,
+                fd as isize,
                 flags.bits() as c_short,
                 Some(callback),
                 callback_ctx,
@@ -266,7 +266,7 @@ pub(crate) extern "C" fn handle_wrapped_callback<S, T, F>(
     let ev = cb_ref.event.as_mut().expect("Missing event for callback");
 
     ev.set_in_callback(true);
-    <T as Exec<S, F>>::exec(ev, fd, flags, &mut cb_ref.inner);
+    <T as Exec<S, F>>::exec(ev, fd as std::os::windows::io::RawHandle, flags, &mut cb_ref.inner);
     ev.set_in_callback(false);
 
     // row, row, row your boat..
@@ -283,7 +283,7 @@ impl Base {
         ev: &Event<Inactive<T>>,
     ) -> Option<NonNull<libevent_sys::event>> {
         self.event_new(
-            ev.inactive_fd(),
+            Some(ev.inactive_fd().unwrap() as isize),
             ev.inactive_flags(),
             handle_wrapped_callback::<S, T, F>,
             None,
@@ -302,7 +302,7 @@ impl Base {
 
         self.event_assign(
             raw_ev,
-            ev.inactive_fd(),
+            Some(ev.inactive_fd().unwrap() as isize),
             ev.inactive_flags(),
             handle_wrapped_callback::<S, T, F>,
             Some(ctx_ptr.as_ptr() as EventCallbackCtx),
